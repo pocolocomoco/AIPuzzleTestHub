@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse Grid</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    color: #c8d0e0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    max-width: 900px;
+    width: 100%;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .header h1 {
+    font-size: 2rem;
+    font-weight: 300;
+    letter-spacing: 6px;
+    color: #e0e6f0;
+    text-transform: uppercase;
+  }
+
+  /* Stats bar */
+  .stats {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+  }
+  .stat { text-align: center; }
+  .stat-label { color: #667; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; }
+  .stat-value { font-size: 1.4rem; font-weight: 600; color: #e0e6f0; }
+  .stat-value.solved-text { color: #2ecc71; }
+
+  /* Goal indicator */
+  .goal-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    font-size: 0.85rem;
+    color: #667;
+  }
+  .goal-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 2px solid rgba(255,255,255,0.15);
+  }
+
+  /* Canvas area */
+  .canvas-wrap {
+    position: relative;
+    margin-bottom: 20px;
+  }
+  canvas {
+    border-radius: 12px;
+    cursor: pointer;
+    display: block;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  button {
+    background: #1a1a2e;
+    color: #c8d0e0;
+    border: 1px solid #333;
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  button:hover { background: #252545; border-color: #556; }
+  button.active { border-color: #5c7cfa; background: #1e2a5a; }
+  button.primary { border-color: #2ecc71; color: #2ecc71; }
+  button.primary:hover { background: #1a3a2a; }
+
+  /* Difficulty selector */
+  .diff-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .diff-btn {
+    font-size: 0.75rem;
+    padding: 6px 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* Banner */
+  .banner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10, 10, 26, 0.92);
+    padding: 24px 40px;
+    border-radius: 16px;
+    border: 1px solid #2ecc71;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s;
+    z-index: 10;
+  }
+  .banner.show { opacity: 1; pointer-events: auto; }
+  .banner h2 { color: #2ecc71; font-size: 1.6rem; margin-bottom: 8px; }
+  .banner p { color: #99a; font-size: 0.9rem; margin-bottom: 12px; }
+  .banner button { pointer-events: auto; }
+
+  /* Mode indicator */
+  .mode-tag {
+    font-size: 0.7rem;
+    color: #556;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>Pulse Grid</h1>
+  </div>
+
+  <div class="mode-tag" id="modeTag">STANDALONE</div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Level</div>
+      <div class="stat-value" id="levelVal">1</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Moves</div>
+      <div class="stat-value" id="movesVal">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Par</div>
+      <div class="stat-value" id="parVal">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Score</div>
+      <div class="stat-value" id="scoreVal">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Status</div>
+      <div class="stat-value" id="statusVal">—</div>
+    </div>
+  </div>
+
+  <div class="goal-row">
+    <span>TARGET</span>
+    <div class="goal-swatch" id="goalSwatch"></div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="grid"></canvas>
+    <div class="banner" id="banner">
+      <h2 id="bannerTitle">Solved!</h2>
+      <p id="bannerMsg">Level complete</p>
+      <button class="primary" id="bannerBtn" onclick="handleNextLevel()">Next Level</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button onclick="handleReset()">Reset Level</button>
+    <button onclick="handleNewGame()">New Game</button>
+  </div>
+
+  <div class="diff-row">
+    <button class="diff-btn active" data-diff="easy" onclick="selectDifficulty('easy', this)">Easy</button>
+    <button class="diff-btn" data-diff="medium" onclick="selectDifficulty('medium', this)">Medium</button>
+    <button class="diff-btn" data-diff="hard" onclick="selectDifficulty('hard', this)">Hard</button>
+    <button class="diff-btn" data-diff="very_hard" onclick="selectDifficulty('very_hard', this)">Very Hard</button>
+  </div>
+</div>
+
+<script>
+// =========================================================================
+// Configuration
+// =========================================================================
+
+const COLORS = [
+  "#e74c3c",  // 0 Red
+  "#3498db",  // 1 Blue
+  "#2ecc71",  // 2 Green
+  "#f1c40f",  // 3 Yellow
+  "#9b59b6",  // 4 Purple
+];
+
+const PULSE_PATTERNS = {
+  0: [],                                                      // Self only
+  1: [[-1,0],[1,0],[0,-1],[0,1]],                              // Cross
+  2: [[-1,-1],[-1,1],[1,-1],[1,1]],                            // X / diagonal
+  3: [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]], // Block (all 8)
+  4: [[-2,0],[-1,0],[1,0],[2,0],[0,-2],[0,-1],[0,1],[0,2]],   // Extended cross
+};
+
+const DIFFICULTY_CONFIG = {
+  easy:      { grid_size: 3, num_colors: 3, scramble: [3, 5],   levels: 5  },
+  medium:    { grid_size: 4, num_colors: 4, scramble: [6, 9],   levels: 8  },
+  hard:      { grid_size: 5, num_colors: 4, scramble: [9, 14],  levels: 12 },
+  very_hard: { grid_size: 6, num_colors: 5, scramble: [13, 20], levels: 20 },
+};
+
+const CELL_SIZE   = 72;
+const CELL_GAP    = 4;
+const GRID_PAD    = 16;
+const CORNER_R    = 10;
+
+// =========================================================================
+// State
+// =========================================================================
+
+let state = {
+  grid: [],
+  grid_size: 3,
+  num_colors: 3,
+  level: 1,
+  max_levels: 5,
+  total_score: 0,
+  moves: 0,
+  par: 0,
+  difficulty: "easy",
+  goal_color: 0,
+  solved: false,
+  game_complete: false,
+  last_affected: [],
+};
+
+let sessionId = null;
+let serverMode = false;
+let animating = false;
+let pulseAnims = [];   // [{r, c, t, maxT}]
+let initialGrid = null; // for standalone reset
+
+// =========================================================================
+// Canvas setup
+// =========================================================================
+
+const canvas = document.getElementById("grid");
+const ctx    = canvas.getContext("2d");
+
+function resizeCanvas() {
+  const gs = state.grid_size;
+  const total = GRID_PAD * 2 + gs * CELL_SIZE + (gs - 1) * CELL_GAP;
+  canvas.width  = total;
+  canvas.height = total;
+}
+
+// =========================================================================
+// Rendering
+// =========================================================================
+
+function draw() {
+  const gs = state.grid_size;
+  const w  = canvas.width;
+  const h  = canvas.height;
+
+  // Background
+  ctx.fillStyle = "#12122a";
+  ctx.beginPath();
+  roundRect(ctx, 0, 0, w, h, 12);
+  ctx.fill();
+
+  // Cells
+  for (let r = 0; r < gs; r++) {
+    for (let c = 0; c < gs; c++) {
+      const x = GRID_PAD + c * (CELL_SIZE + CELL_GAP);
+      const y = GRID_PAD + r * (CELL_SIZE + CELL_GAP);
+      const val = state.grid[r][c];
+
+      // Pulse glow
+      let glowAlpha = 0;
+      for (const a of pulseAnims) {
+        if (a.r === r && a.c === c) {
+          glowAlpha = Math.max(glowAlpha, 1 - a.t / a.maxT);
+        }
+      }
+
+      // Cell bg
+      ctx.fillStyle = COLORS[val] || "#444";
+      ctx.beginPath();
+      roundRect(ctx, x, y, CELL_SIZE, CELL_SIZE, CORNER_R);
+      ctx.fill();
+
+      // Glow overlay
+      if (glowAlpha > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${(glowAlpha * 0.45).toFixed(3)})`;
+        ctx.beginPath();
+        roundRect(ctx, x, y, CELL_SIZE, CELL_SIZE, CORNER_R);
+        ctx.fill();
+      }
+
+      // Value digit (subtle)
+      ctx.fillStyle = `rgba(0,0,0,0.25)`;
+      ctx.font = `bold ${CELL_SIZE * 0.38}px monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(val, x + CELL_SIZE / 2, y + CELL_SIZE / 2);
+    }
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// =========================================================================
+// Animation loop
+// =========================================================================
+
+let lastFrameTime = 0;
+
+function animLoop(ts) {
+  const dt = ts - lastFrameTime;
+  lastFrameTime = ts;
+
+  // Update pulse animations
+  pulseAnims = pulseAnims.filter(a => {
+    a.t += dt;
+    return a.t < a.maxT;
+  });
+
+  draw();
+  requestAnimationFrame(animLoop);
+}
+
+requestAnimationFrame(animLoop);
+
+// =========================================================================
+// Interaction (canvas click)
+// =========================================================================
+
+canvas.addEventListener("click", (e) => {
+  if (state.solved || animating) return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+  const col = Math.floor((sx - GRID_PAD) / (CELL_SIZE + CELL_GAP));
+  const row = Math.floor((sy - GRID_PAD) / (CELL_SIZE + CELL_GAP));
+
+  if (row < 0 || row >= state.grid_size || col < 0 || col >= state.grid_size) return;
+
+  // Check click is within cell bounds (not in the gap)
+  const cx = GRID_PAD + col * (CELL_SIZE + CELL_GAP);
+  const cy = GRID_PAD + row * (CELL_SIZE + CELL_GAP);
+  if (sx < cx || sx > cx + CELL_SIZE || sy < cy || sy > cy + CELL_SIZE) return;
+
+  performClick(row, col);
+});
+
+// =========================================================================
+// Game logic (standalone / fallback)
+// =========================================================================
+
+function localGetAffected(grid, row, col, gridSize) {
+  const val = grid[row][col];
+  const pattern = PULSE_PATTERNS[val] || [];
+  const affected = [[row, col]];
+  for (const [dr, dc] of pattern) {
+    const nr = row + dr;
+    const nc = col + dc;
+    if (nr >= 0 && nr < gridSize && nc >= 0 && nc < gridSize) {
+      affected.push([nr, nc]);
+    }
+  }
+  return affected;
+}
+
+function localApplyClick(grid, row, col, gridSize, numColors) {
+  const affected = localGetAffected(grid, row, col, gridSize);
+  for (const [r, c] of affected) {
+    grid[r][c] = (grid[r][c] + 1) % numColors;
+  }
+  return affected;
+}
+
+function localCheckSolved(grid, goalColor, gridSize) {
+  for (let r = 0; r < gridSize; r++)
+    for (let c = 0; c < gridSize; c++)
+      if (grid[r][c] !== goalColor) return false;
+  return true;
+}
+
+function localGenerateLevel(difficulty, level) {
+  const cfg = DIFFICULTY_CONFIG[difficulty];
+  const gs = cfg.grid_size;
+  const nc = cfg.num_colors;
+  const grid = Array.from({length: gs}, () => Array(gs).fill(0));
+
+  const [lo, hi] = cfg.scramble;
+  const extra = Math.min(level - 1, 8);
+  let numScramble = lo + extra + Math.floor(Math.random() * (hi - lo + 1));
+
+  for (let i = 0; i < numScramble; i++) {
+    const r = Math.floor(Math.random() * gs);
+    const c = Math.floor(Math.random() * gs);
+    localApplyClick(grid, r, c, gs, nc);
+  }
+
+  // Ensure not already solved
+  if (localCheckSolved(grid, 0, gs)) {
+    const r = Math.floor(Math.random() * gs);
+    const c = Math.floor(Math.random() * gs);
+    localApplyClick(grid, r, c, gs, nc);
+    numScramble++;
+  }
+
+  return { grid, par: numScramble };
+}
+
+// =========================================================================
+// Actions
+// =========================================================================
+
+async function performClick(row, col) {
+  if (serverMode && sessionId) {
+    animating = true;
+    try {
+      const res = await fetch("/api/click", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({session_id: sessionId, row, col}),
+      });
+      const data = await res.json();
+      triggerPulseAnim(data.last_affected || []);
+      applyState(data);
+    } catch (e) {
+      console.warn("Server click failed, falling back to local", e);
+      localClick(row, col);
+    }
+    animating = false;
+  } else {
+    localClick(row, col);
+  }
+}
+
+function localClick(row, col) {
+  const affected = localApplyClick(state.grid, row, col, state.grid_size, state.num_colors);
+  state.moves++;
+  state.last_affected = affected;
+  triggerPulseAnim(affected);
+
+  if (localCheckSolved(state.grid, state.goal_color, state.grid_size)) {
+    state.solved = true;
+    const score = Math.max(100 - Math.max(0, state.moves - state.par) * 10, 10);
+    state.total_score += score;
+    state.game_complete = state.level >= state.max_levels;
+  }
+  updateUI();
+}
+
+function triggerPulseAnim(affected) {
+  for (const [r, c] of affected) {
+    pulseAnims.push({ r, c, t: 0, maxT: 400 });
+  }
+}
+
+// =========================================================================
+// Server communication helpers
+// =========================================================================
+
+async function serverNewGame(difficulty) {
+  try {
+    const body = { difficulty };
+    if (sessionId) body.session_id = sessionId;
+    const res = await fetch("/api/new_game", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    sessionId = data.session_id;
+    serverMode = true;
+    applyState(data);
+    document.getElementById("modeTag").textContent = "CONNECTED";
+  } catch (e) {
+    console.warn("Server not available, running standalone", e);
+    serverMode = false;
+    document.getElementById("modeTag").textContent = "STANDALONE";
+    standaloneNewGame(difficulty);
+  }
+}
+
+async function serverReset() {
+  if (!serverMode || !sessionId) { standaloneReset(); return; }
+  try {
+    const res = await fetch("/api/reset", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({session_id: sessionId}),
+    });
+    applyState(await res.json());
+  } catch (e) { standaloneReset(); }
+}
+
+async function serverNextLevel() {
+  if (!serverMode || !sessionId) { standaloneNextLevel(); return; }
+  try {
+    const res = await fetch("/api/next_level", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({session_id: sessionId}),
+    });
+    applyState(await res.json());
+  } catch (e) { standaloneNextLevel(); }
+}
+
+// =========================================================================
+// Standalone game management
+// =========================================================================
+
+function standaloneNewGame(difficulty) {
+  const cfg = DIFFICULTY_CONFIG[difficulty];
+  state.difficulty = difficulty;
+  state.level = 1;
+  state.total_score = 0;
+  state.grid_size = cfg.grid_size;
+  state.num_colors = cfg.num_colors;
+  state.max_levels = cfg.levels;
+  state.goal_color = 0;
+  state.solved = false;
+  state.game_complete = false;
+
+  const lvl = localGenerateLevel(difficulty, 1);
+  state.grid = lvl.grid;
+  state.par = lvl.par;
+  state.moves = 0;
+  state.last_affected = [];
+  initialGrid = state.grid.map(r => [...r]);
+  resizeCanvas();
+  updateUI();
+}
+
+function standaloneReset() {
+  if (initialGrid) {
+    state.grid = initialGrid.map(r => [...r]);
+  }
+  state.moves = 0;
+  state.solved = false;
+  state.last_affected = [];
+  hideBanner();
+  updateUI();
+}
+
+function standaloneNextLevel() {
+  state.level++;
+  const cfg = DIFFICULTY_CONFIG[state.difficulty];
+  state.grid_size = cfg.grid_size;
+  state.num_colors = cfg.num_colors;
+  state.solved = false;
+  state.game_complete = false;
+
+  const lvl = localGenerateLevel(state.difficulty, state.level);
+  state.grid = lvl.grid;
+  state.par = lvl.par;
+  state.moves = 0;
+  state.last_affected = [];
+  initialGrid = state.grid.map(r => [...r]);
+  resizeCanvas();
+  hideBanner();
+  updateUI();
+}
+
+// =========================================================================
+// UI updates
+// =========================================================================
+
+function applyState(data) {
+  state.grid         = data.grid;
+  state.grid_size    = data.grid_size;
+  state.num_colors   = data.num_colors;
+  state.level        = data.level;
+  state.max_levels   = data.max_levels;
+  state.total_score  = data.total_score;
+  state.moves        = data.moves;
+  state.par          = data.par;
+  state.difficulty   = data.difficulty;
+  state.goal_color   = data.goal_color;
+  state.solved       = data.solved;
+  state.game_complete = data.game_complete || false;
+  state.last_affected = data.last_affected || [];
+  initialGrid = state.grid.map(r => [...r]);
+  resizeCanvas();
+  updateUI();
+}
+
+function updateUI() {
+  document.getElementById("levelVal").textContent  = `${state.level}/${state.max_levels}`;
+  document.getElementById("movesVal").textContent  = state.moves;
+  document.getElementById("parVal").textContent    = state.par;
+  document.getElementById("scoreVal").textContent  = state.total_score;
+  document.getElementById("goalSwatch").style.background = COLORS[state.goal_color];
+
+  const statusEl = document.getElementById("statusVal");
+  if (state.solved) {
+    statusEl.textContent = state.game_complete ? "COMPLETE" : "SOLVED";
+    statusEl.className = "stat-value solved-text";
+    showBanner();
+  } else {
+    statusEl.textContent = "playing";
+    statusEl.className = "stat-value";
+    hideBanner();
+  }
+
+  // Highlight active difficulty button
+  document.querySelectorAll(".diff-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.diff === state.difficulty);
+  });
+}
+
+function showBanner() {
+  const banner = document.getElementById("banner");
+  const title  = document.getElementById("bannerTitle");
+  const msg    = document.getElementById("bannerMsg");
+  const btn    = document.getElementById("bannerBtn");
+
+  if (state.game_complete) {
+    title.textContent = "All Levels Complete!";
+    msg.textContent   = `Final score: ${state.total_score}`;
+    btn.textContent   = "Play Again";
+    btn.onclick       = () => handleNewGame();
+  } else {
+    const lvlScore = Math.max(100 - Math.max(0, state.moves - state.par) * 10, 10);
+    title.textContent = "Level Solved!";
+    msg.textContent   = `+${lvlScore} points  (${state.moves} moves, par ${state.par})`;
+    btn.textContent   = "Next Level";
+    btn.onclick       = () => handleNextLevel();
+  }
+  banner.classList.add("show");
+}
+
+function hideBanner() {
+  document.getElementById("banner").classList.remove("show");
+}
+
+// =========================================================================
+// Button handlers
+// =========================================================================
+
+function selectDifficulty(diff, el) {
+  handleNewGameWithDifficulty(diff);
+}
+
+function handleNewGame() {
+  handleNewGameWithDifficulty(state.difficulty);
+}
+
+function handleNewGameWithDifficulty(diff) {
+  hideBanner();
+  serverNewGame(diff);
+}
+
+function handleReset() {
+  hideBanner();
+  serverReset();
+}
+
+function handleNextLevel() {
+  hideBanner();
+  serverNextLevel();
+}
+
+// =========================================================================
+// Init
+// =========================================================================
+
+(async function init() {
+  // Try connecting to server first
+  try {
+    const res = await fetch("/api/new_game", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({difficulty: "easy"}),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      sessionId = data.session_id;
+      serverMode = true;
+      document.getElementById("modeTag").textContent = "CONNECTED";
+      applyState(data);
+      return;
+    }
+  } catch (e) { /* server not running */ }
+
+  // Fallback: standalone mode
+  serverMode = false;
+  document.getElementById("modeTag").textContent = "STANDALONE";
+  standaloneNewGame("easy");
+})();
+</script>
+</body>
+</html>
