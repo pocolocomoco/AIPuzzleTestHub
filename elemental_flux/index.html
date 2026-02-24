@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elemental Flux</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-primary: #0f0f1a;
+    --bg-secondary: #1a1a2e;
+    --bg-card: #16213e;
+    --text-primary: #e0e0ff;
+    --text-secondary: #8888aa;
+    --border: #2a2a4a;
+    --accent: #6c63ff;
+    --phase-0: #FF4455;
+    --phase-1: #4499FF;
+    --phase-2: #44DD55;
+    --phase-3: #FFCC33;
+    --glow-0: rgba(255,68,85,0.4);
+    --glow-1: rgba(68,153,255,0.4);
+    --glow-2: rgba(68,221,85,0.4);
+    --glow-3: rgba(255,204,51,0.4);
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    padding: 24px 16px 8px;
+    width: 100%;
+    max-width: 960px;
+  }
+  header h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--phase-0), var(--phase-1), var(--phase-2), var(--phase-3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: 2px;
+  }
+  header .subtitle {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-top: 4px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    max-width: 960px;
+    width: 100%;
+  }
+  .controls select, .controls button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .controls select:hover, .controls button:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px rgba(108,99,255,0.3);
+  }
+  .controls button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+  .controls button.primary:hover {
+    background: #7b73ff;
+  }
+
+  .main-area {
+    display: flex;
+    gap: 20px;
+    padding: 12px 16px;
+    max-width: 960px;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .game-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .stats-bar {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .stat {
+    text-align: center;
+  }
+  .stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+  }
+  .stat-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+  }
+
+  .target-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .target-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: 2px solid rgba(255,255,255,0.3);
+  }
+
+  #grid-container {
+    display: inline-grid;
+    gap: 4px;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .cell {
+    width: 72px;
+    height: 72px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.12s, box-shadow 0.25s;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .cell:hover {
+    transform: scale(1.06);
+    z-index: 2;
+  }
+  .cell:active {
+    transform: scale(0.96);
+  }
+  .cell.locked {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  .cell.locked::after {
+    content: '\1F512';
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 0.65rem;
+  }
+  .cell .shape {
+    font-size: 1.8rem;
+    color: rgba(0,0,0,0.6);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    pointer-events: none;
+    transition: transform 0.3s;
+  }
+  .cell.flash .shape {
+    transform: scale(1.3);
+  }
+
+  .cell.phase-0 { background: var(--phase-0); box-shadow: 0 0 12px var(--glow-0); }
+  .cell.phase-1 { background: var(--phase-1); box-shadow: 0 0 12px var(--glow-1); }
+  .cell.phase-2 { background: var(--phase-2); box-shadow: 0 0 12px var(--glow-2); }
+  .cell.phase-3 { background: var(--phase-3); box-shadow: 0 0 12px var(--glow-3); }
+
+  .sidebar {
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 250px;
+  }
+
+  .panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .panel h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 0.85rem;
+  }
+  .legend-shape {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+  }
+
+  .log-container {
+    max-height: 260px;
+    overflow-y: auto;
+    font-size: 0.78rem;
+    font-family: 'Consolas', 'Courier New', monospace;
+  }
+  .log-container::-webkit-scrollbar { width: 6px; }
+  .log-container::-webkit-scrollbar-track { background: transparent; }
+  .log-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .log-entry {
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    line-height: 1.4;
+  }
+  .log-entry .move-num { color: var(--accent); font-weight: 600; }
+  .log-entry .coords { color: var(--phase-3); }
+  .log-entry .changes { color: var(--text-secondary); }
+
+  .victory-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+  }
+  .victory-overlay.show { display: flex; }
+  .victory-box {
+    background: var(--bg-card);
+    border: 2px solid var(--accent);
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    max-width: 400px;
+    box-shadow: 0 0 40px rgba(108,99,255,0.4);
+  }
+  .victory-box h2 {
+    font-size: 1.8rem;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, var(--phase-2), var(--phase-1));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .victory-box .score-display {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--phase-3);
+    margin: 12px 0;
+  }
+  .victory-box p { color: var(--text-secondary); margin: 8px 0; }
+  .victory-box button {
+    margin-top: 16px;
+    padding: 10px 24px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 8px;
+  }
+  .victory-box button:hover { background: #7b73ff; }
+
+  .all-complete-msg { font-size: 1.1rem; color: var(--phase-2); margin: 8px 0; }
+
+  @media (max-width: 700px) {
+    .cell { width: 56px; height: 56px; }
+    .cell .shape { font-size: 1.4rem; }
+    .sidebar { width: 100%; }
+    header h1 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ELEMENTAL FLUX</h1>
+  <p class="subtitle">Discover the hidden rules. Transform the grid.</p>
+</header>
+
+<div class="controls">
+  <select id="difficulty-select">
+    <option value="easy">Easy (3x3)</option>
+    <option value="medium">Medium (4x4)</option>
+    <option value="hard">Hard (5x5)</option>
+    <option value="very_hard">Very Hard (6x6)</option>
+  </select>
+  <button class="primary" id="new-game-btn">New Game</button>
+  <button id="reset-btn">Reset</button>
+</div>
+
+<div class="main-area">
+  <div class="game-panel">
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-label">Level</div>
+        <div class="stat-value" id="level-display">1 / 5</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Moves</div>
+        <div class="stat-value" id="moves-display">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Total Score</div>
+        <div class="stat-value" id="score-display">0</div>
+      </div>
+    </div>
+
+    <div class="target-indicator">
+      <span>Target:</span>
+      <div class="target-swatch" id="target-swatch"></div>
+      <span id="target-label">Make all cells this color</span>
+    </div>
+
+    <div id="grid-container"></div>
+  </div>
+
+  <div class="sidebar">
+    <div class="panel">
+      <h3>Node Types</h3>
+      <div id="legend-container"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Action Log</h3>
+      <div class="log-container" id="log-container">
+        <div class="log-entry" style="color:var(--text-secondary)">Click cells to experiment...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="victory-overlay" id="victory-overlay">
+  <div class="victory-box">
+    <h2 id="victory-title">Puzzle Solved!</h2>
+    <div class="score-display" id="victory-score">1000</div>
+    <p id="victory-moves">Solved in 0 moves</p>
+    <p id="victory-total">Total score: 0</p>
+    <div id="all-complete-container"></div>
+    <div>
+      <button id="victory-next-btn">Next Level</button>
+      <button id="victory-new-btn" style="background:var(--bg-secondary)">New Game</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Game Engine (mirrors Python exactly) ───────────────────────────────────
+
+const DIFFICULTY_CONFIG = {
+  easy:      { gridSize: 3, numPhases: 2, numNodeTypes: 2, baseScramble: 5,  scramblePerLevel: 2, lockedCells: false, levels: 5 },
+  medium:    { gridSize: 4, numPhases: 3, numNodeTypes: 3, baseScramble: 10, scramblePerLevel: 3, lockedCells: false, levels: 5 },
+  hard:      { gridSize: 5, numPhases: 4, numNodeTypes: 4, baseScramble: 20, scramblePerLevel: 4, lockedCells: false, levels: 5 },
+  very_hard: { gridSize: 6, numPhases: 4, numNodeTypes: 4, baseScramble: 35, scramblePerLevel: 5, lockedCells: true,  levels: 5 },
+};
+
+const PHASE_COLORS = ['#FF4455', '#4499FF', '#44DD55', '#FFCC33'];
+const PHASE_NAMES  = ['Red', 'Blue', 'Green', 'Yellow'];
+const NODE_TYPE_NAMES   = ['Triangle', 'Circle', 'Square', 'Diamond'];
+const NODE_TYPE_SYMBOLS = ['\u25B2', '\u25CF', '\u25A0', '\u25C6'];
+
+// Seeded PRNG (mulberry32)
+function makeRng(seed) {
+  let s = seed | 0;
+  return function() {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+class ElementalFluxGame {
+  constructor(difficulty = 'easy', level = 1, seed = null) {
+    this.difficulty = difficulty;
+    this.level = level;
+    const cfg = DIFFICULTY_CONFIG[difficulty];
+    this.config = cfg;
+    this.gridSize = cfg.gridSize;
+    this.numPhases = cfg.numPhases;
+    this.numNodeTypes = cfg.numNodeTypes;
+    this.hasLockedCells = cfg.lockedCells;
+    this.maxLevels = cfg.levels;
+    this.scrambleMoves = cfg.baseScramble + (level - 1) * cfg.scramblePerLevel;
+
+    this._seed = seed !== null ? seed : Math.floor(Math.random() * 2147483647);
+    this._rng = makeRng(this._seed);
+
+    this.targetPhase = 0;
+    this.moves = 0;
+    this.solved = false;
+    this.history = [];
+    this.levelScores = [];
+    this.totalScore = 0;
+
+    this._generatePuzzle();
+  }
+
+  _rngInt(max) {
+    return Math.floor(this._rng() * max);
+  }
+
+  _shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = this._rngInt(i + 1);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  _generatePuzzle() {
+    const n = this.gridSize;
+
+    // Random node types
+    this.nodeTypes = Array.from({ length: n }, () =>
+      Array.from({ length: n }, () => this._rngInt(this.numNodeTypes))
+    );
+
+    // Solved state
+    this.grid = Array.from({ length: n }, () => Array(n).fill(this.targetPhase));
+
+    // Locked cells
+    this.locked = Array.from({ length: n }, () => Array(n).fill(false));
+    if (this.hasLockedCells) {
+      const numLocked = Math.max(1, Math.floor(n * n / 6));
+      const positions = [];
+      for (let r = 0; r < n; r++)
+        for (let c = 0; c < n; c++)
+          positions.push([r, c]);
+      this._shuffle(positions);
+      for (let i = 0; i < numLocked; i++) {
+        this.locked[positions[i][0]][positions[i][1]] = true;
+      }
+    }
+
+    // Clickable cells
+    const clickable = [];
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++)
+        if (!this.locked[r][c]) clickable.push([r, c]);
+
+    // Scramble
+    for (let i = 0; i < this.scrambleMoves; i++) {
+      const [r, c] = clickable[this._rngInt(clickable.length)];
+      this._applyClick(r, c);
+    }
+
+    // Ensure not already solved
+    let attempts = 0;
+    while (this._checkSolved() && attempts < 100) {
+      const [r, c] = clickable[this._rngInt(clickable.length)];
+      this._applyClick(r, c);
+      attempts++;
+    }
+
+    // Store initial state
+    this.initialGrid = this.grid.map(row => [...row]);
+    this.moves = 0;
+    this.history = [];
+    this.solved = false;
+  }
+
+  _getAffectedCells(row, col) {
+    const n = this.gridSize;
+    const nt = this.nodeTypes[row][col];
+    const affected = [[row, col]];
+
+    if (nt === 0) { // Triangle: vertical
+      if (row > 0) affected.push([row - 1, col]);
+      if (row < n - 1) affected.push([row + 1, col]);
+    } else if (nt === 1) { // Circle: horizontal
+      if (col > 0) affected.push([row, col - 1]);
+      if (col < n - 1) affected.push([row, col + 1]);
+    } else if (nt === 2) { // Square: diagonal
+      for (const [dr, dc] of [[-1,-1],[-1,1],[1,-1],[1,1]]) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < n && nc >= 0 && nc < n) affected.push([nr, nc]);
+      }
+    } else if (nt === 3) { // Diamond: all orthogonal
+      for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+        const nr = row + dr, nc = col + dc;
+        if (nr >= 0 && nr < n && nc >= 0 && nc < n) affected.push([nr, nc]);
+      }
+    }
+    return affected;
+  }
+
+  _applyClick(row, col) {
+    const affected = this._getAffectedCells(row, col);
+    const changes = [];
+    for (const [r, c] of affected) {
+      const oldPhase = this.grid[r][c];
+      const newPhase = (oldPhase + 1) % this.numPhases;
+      this.grid[r][c] = newPhase;
+      changes.push({ row: r, col: c, oldPhase, newPhase });
+    }
+    return changes;
+  }
+
+  _checkSolved() {
+    for (let r = 0; r < this.gridSize; r++)
+      for (let c = 0; c < this.gridSize; c++)
+        if (this.grid[r][c] !== this.targetPhase) return false;
+    return true;
+  }
+
+  click(row, col) {
+    if (this.solved) return { success: false, message: 'Already solved!', changes: [] };
+    if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize)
+      return { success: false, message: 'Invalid position', changes: [] };
+    if (this.hasLockedCells && this.locked[row][col])
+      return { success: false, message: 'Cell is locked', changes: [] };
+
+    const changes = this._applyClick(row, col);
+    this.moves++;
+    this.history.push([row, col]);
+    this.solved = this._checkSolved();
+
+    const result = {
+      success: true,
+      changes,
+      clicked: { row, col, nodeType: this.nodeTypes[row][col] },
+      moves: this.moves,
+      solved: this.solved,
+    };
+
+    if (this.solved) {
+      const score = this._calculateScore();
+      result.score = score;
+      result.message = `Solved in ${this.moves} moves! Score: ${score}`;
+      this.levelScores.push({ level: this.level, moves: this.moves, score });
+      this.totalScore += score;
+    }
+    return result;
+  }
+
+  _calculateScore() {
+    const optimal = this.scrambleMoves;
+    if (this.moves <= optimal) return 1000;
+    return Math.max(100, Math.floor(1000 * optimal / this.moves));
+  }
+
+  reset() {
+    this.grid = this.initialGrid.map(row => [...row]);
+    this.moves = 0;
+    this.history = [];
+    this.solved = false;
+  }
+
+  nextLevel() {
+    if (!this.solved) return null;
+    if (this.level >= this.maxLevels) return { complete: true, totalScore: this.totalScore, levelScores: this.levelScores };
+
+    this.level++;
+    this.scrambleMoves = this.config.baseScramble + (this.level - 1) * this.config.scramblePerLevel;
+    this._seed = this._rngInt(2147483647);
+    this._rng = makeRng(this._seed);
+    this._generatePuzzle();
+    return { complete: false };
+  }
+}
+
+// ─── UI Controller ──────────────────────────────────────────────────────────
+
+let game = null;
+let animating = false;
+
+const $ = id => document.getElementById(id);
+
+function newGame() {
+  const diff = $('difficulty-select').value;
+  game = new ElementalFluxGame(diff, 1);
+  $('victory-overlay').classList.remove('show');
+  renderAll();
+  clearLog();
+  logEntry('Game started. Click cells to discover the rules!');
+}
+
+function resetGame() {
+  if (!game) return;
+  game.reset();
+  renderAll();
+  clearLog();
+  logEntry('Puzzle reset to initial state.');
+}
+
+function renderAll() {
+  renderGrid();
+  renderStats();
+  renderLegend();
+  renderTarget();
+}
+
+function renderGrid() {
+  const container = $('grid-container');
+  container.innerHTML = '';
+  container.style.gridTemplateColumns = `repeat(${game.gridSize}, 72px)`;
+
+  for (let r = 0; r < game.gridSize; r++) {
+    for (let c = 0; c < game.gridSize; c++) {
+      const cell = document.createElement('div');
+      cell.className = `cell phase-${game.grid[r][c]}`;
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+
+      if (game.hasLockedCells && game.locked[r][c]) {
+        cell.classList.add('locked');
+      }
+
+      const shape = document.createElement('span');
+      shape.className = 'shape';
+      shape.textContent = NODE_TYPE_SYMBOLS[game.nodeTypes[r][c]];
+      cell.appendChild(shape);
+
+      cell.addEventListener('click', () => handleCellClick(r, c));
+      container.appendChild(cell);
+    }
+  }
+}
+
+function updateCells(changes) {
+  const container = $('grid-container');
+  const cells = container.children;
+
+  for (const ch of changes) {
+    const idx = ch.row * game.gridSize + ch.col;
+    const cell = cells[idx];
+    // Remove old phase class
+    cell.className = cell.className.replace(/phase-\d/g, '').trim();
+    cell.classList.add(`phase-${ch.newPhase}`);
+    // Flash animation
+    cell.classList.add('flash');
+    setTimeout(() => cell.classList.remove('flash'), 300);
+  }
+}
+
+function renderStats() {
+  $('level-display').textContent = `${game.level} / ${game.maxLevels}`;
+  $('moves-display').textContent = game.moves;
+  $('score-display').textContent = game.totalScore;
+}
+
+function renderTarget() {
+  $('target-swatch').style.background = PHASE_COLORS[game.targetPhase];
+  $('target-label').textContent = `Make all cells ${PHASE_NAMES[game.targetPhase]}`;
+}
+
+function renderLegend() {
+  const container = $('legend-container');
+  container.innerHTML = '';
+  for (let i = 0; i < game.numNodeTypes; i++) {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `
+      <div class="legend-shape">${NODE_TYPE_SYMBOLS[i]}</div>
+      <span>${NODE_TYPE_NAMES[i]} &mdash; click to observe effect</span>
+    `;
+    container.appendChild(item);
+  }
+
+  // Phase legend
+  const phaseHeader = document.createElement('div');
+  phaseHeader.style.cssText = 'margin-top:10px; font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px;';
+  phaseHeader.textContent = 'Phases';
+  container.appendChild(phaseHeader);
+
+  for (let i = 0; i < game.numPhases; i++) {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `
+      <div class="legend-shape" style="background:${PHASE_COLORS[i]}; border-color:${PHASE_COLORS[i]};">&nbsp;</div>
+      <span>${PHASE_NAMES[i]}${i === game.targetPhase ? ' (target)' : ''}</span>
+    `;
+    container.appendChild(item);
+  }
+}
+
+function handleCellClick(row, col) {
+  if (!game || game.solved || animating) return;
+
+  const result = game.click(row, col);
+  if (!result.success) {
+    logEntry(`(${row},${col}): ${result.message}`);
+    return;
+  }
+
+  // Animate changes
+  animating = true;
+  updateCells(result.changes);
+  renderStats();
+
+  // Build log message
+  const nodeTypeName = NODE_TYPE_NAMES[result.clicked.nodeType];
+  const changedDesc = result.changes.map(ch =>
+    `(${ch.row},${ch.col}): ${PHASE_NAMES[ch.oldPhase]}\u2192${PHASE_NAMES[ch.newPhase]}`
+  ).join(', ');
+  logEntry(
+    `<span class="move-num">#${result.moves}</span> ` +
+    `Clicked <span class="coords">(${row},${col})</span> [${nodeTypeName}] \u2192 ` +
+    `<span class="changes">${changedDesc}</span>`
+  );
+
+  setTimeout(() => {
+    animating = false;
+    if (result.solved) showVictory(result);
+  }, 350);
+}
+
+function showVictory(result) {
+  const score = result.score;
+  $('victory-score').textContent = score;
+  $('victory-moves').textContent = `Solved in ${result.moves} moves`;
+  $('victory-total').textContent = `Total score: ${game.totalScore}`;
+
+  const isComplete = game.level >= game.maxLevels;
+  const nextBtn = $('victory-next-btn');
+  const completeContainer = $('all-complete-container');
+  completeContainer.innerHTML = '';
+
+  if (isComplete) {
+    nextBtn.style.display = 'none';
+    completeContainer.innerHTML = `<p class="all-complete-msg">All ${game.maxLevels} levels complete!</p>`;
+  } else {
+    nextBtn.style.display = '';
+  }
+
+  $('victory-overlay').classList.add('show');
+}
+
+function handleNextLevel() {
+  const result = game.nextLevel();
+  if (!result) return;
+  if (result.complete) {
+    $('victory-overlay').classList.remove('show');
+    return;
+  }
+  $('victory-overlay').classList.remove('show');
+  renderAll();
+  clearLog();
+  logEntry(`Level ${game.level} started. New puzzle generated!`);
+}
+
+// ─── Action Log ─────────────────────────────────────────────────────────────
+
+function clearLog() {
+  $('log-container').innerHTML = '';
+}
+
+function logEntry(html) {
+  const container = $('log-container');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = html;
+  container.appendChild(entry);
+  container.scrollTop = container.scrollHeight;
+}
+
+// ─── Event Bindings ─────────────────────────────────────────────────────────
+
+$('new-game-btn').addEventListener('click', newGame);
+$('reset-btn').addEventListener('click', resetGame);
+$('victory-next-btn').addEventListener('click', handleNextLevel);
+$('victory-new-btn').addEventListener('click', newGame);
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.key === 'r' && !e.ctrlKey && !e.metaKey) resetGame();
+  if (e.key === 'n' && !e.ctrlKey && !e.metaKey) newGame();
+});
+
+// Start initial game
+newGame();
+</script>
+</body>
+</html>
